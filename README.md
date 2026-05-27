@@ -2,7 +2,7 @@
 
 Ask anything about the NBA and get a data-driven answer powered by Claude.
 
-**[Live demo →](#)** _(URL goes here after Vercel deploy)_
+**[Live demo →](https://courtiq-ryanzx-zoneout.vercel.app)**
 
 ## Features
 
