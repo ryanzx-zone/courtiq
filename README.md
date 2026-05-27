@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CourtIQ — AI-Powered NBA Analytics
 
-## Getting Started
+Ask anything about the NBA and get a data-driven answer powered by Claude.
 
-First, run the development server:
+**[Live demo →](#)** _(URL goes here after Vercel deploy)_
+
+## Features
+
+- **AI Ask Engine** — Natural-language basketball Q&A with structured analysis, key stats, hot-take verdicts, and follow-up suggestions
+- **Player Comparison** — Side-by-side radar overlap and 17-stat advantage table with green/red highlights (inverted for negative stats like turnovers)
+- **Player Browser** — Search, filter, and sort 61 NBA players by position, team, conference, and any of 10 sort metrics
+- **Player Profiles** — Per-player deep dive with grouped stat sections and percentile-rank radar across 6 composite axes
+
+## Tech Stack
+
+| Layer | What |
+|---|---|
+| Framework | Next.js 16 (App Router, React Server Components) |
+| Language | TypeScript |
+| Styling | Tailwind CSS v4 (CSS-first config via `@theme`) |
+| Charts | Recharts 3 |
+| AI | Anthropic Claude API (`claude-opus-4-7`) with structured outputs + prompt caching |
+| Icons | Lucide |
+| Data | Static JSON (no database) |
+| Deployment | Vercel |
+
+## Architecture
+
+- **Server components by default** — data loading happens server-side, client components only where interactivity is needed
+- **Static JSON data layer** — 61 players, 30 teams, 63 draft picks loaded at build time; no database, no flaky API dependencies
+- **Claude API integration** — server-side proxy route at `/api/ask` with `output_config.format` enforcing typed `AskResponse` shape, plus prompt caching that drops repeat-query cost ~90%
+- **Composite stat utilities** — percentile-rank radar profiles computed across the player pool (Scoring / Playmaking / Rebounding / Defense / Efficiency / Impact)
+
+## Local Development
 
 ```bash
+git clone https://github.com/YOUR_USERNAME/courtiq.git
+cd courtiq
+npm install
+cp .env.example .env.local
+# Edit .env.local — add your ANTHROPIC_API_KEY from console.anthropic.com
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+src/
+├── app/                 # Next.js App Router routes
+│   ├── ask/             # AI Q&A page
+│   ├── compare/         # Head-to-head comparison
+│   ├── players/[id]/    # Player profile (dynamic)
+│   ├── api/ask/         # Claude API proxy route
+│   └── page.tsx         # Landing page
+├── components/
+│   ├── charts/          # Recharts wrappers (radar, bar, line)
+│   ├── features/        # Page-specific complex components
+│   ├── layout/          # Navbar
+│   └── ui/              # Reusable primitives (SearchBar, PlayerCard, etc.)
+├── data/                # Static JSON datasets
+├── lib/                 # Data loaders, stat utilities, Claude prompts
+└── types/               # TypeScript interfaces
+```
 
-## Learn More
+## Built by
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+[Your Name] — Computer Engineering, National University of Singapore

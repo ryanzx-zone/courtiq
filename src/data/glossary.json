@@ -1,0 +1,20 @@
+{
+  "ppg": { "name": "Points Per Game", "category": "scoring", "description": "Average points scored per game." },
+  "rpg": { "name": "Rebounds Per Game", "category": "rebounding", "description": "Average total rebounds (offensive + defensive) per game." },
+  "apg": { "name": "Assists Per Game", "category": "playmaking", "description": "Average assists per game. An assist is a pass that directly leads to a made basket." },
+  "spg": { "name": "Steals Per Game", "category": "defense", "description": "Average steals per game." },
+  "bpg": { "name": "Blocks Per Game", "category": "defense", "description": "Average blocked shots per game." },
+  "topg": { "name": "Turnovers Per Game", "category": "playmaking", "description": "Average turnovers per game (lower is better)." },
+  "mpg": { "name": "Minutes Per Game", "category": "usage", "description": "Average minutes played per game." },
+  "fgPct": { "name": "Field Goal Percentage", "category": "shooting", "description": "Made field goals divided by attempted field goals. Excludes free throws." },
+  "fg3Pct": { "name": "Three-Point Percentage", "category": "shooting", "description": "Made three-pointers divided by attempted three-pointers. Elite shooters are above 40%." },
+  "ftPct": { "name": "Free Throw Percentage", "category": "shooting", "description": "Made free throws divided by attempted free throws." },
+  "tsPct": { "name": "True Shooting Percentage", "category": "shooting", "description": "Shooting efficiency that accounts for the value of 3-pointers and free throws. League average is around 57%. Above 60% is elite." },
+  "per": { "name": "Player Efficiency Rating", "category": "advanced", "description": "Per-minute productivity rating where league average is 15. Above 25 is MVP-caliber." },
+  "usgPct": { "name": "Usage Rate", "category": "usage", "description": "Estimated percentage of team plays a player uses while on the floor. Stars often have usage above 28%." },
+  "bpm": { "name": "Box Plus/Minus", "category": "advanced", "description": "Estimated points contributed above a league-average player per 100 possessions. +5 is All-Star level, +8 is MVP level." },
+  "vorp": { "name": "Value Over Replacement Player", "category": "advanced", "description": "Cumulative estimate of points contributed above a replacement-level player. Higher is better." },
+  "ws": { "name": "Win Shares", "category": "advanced", "description": "Estimate of wins a player contributed to their team across the season." },
+  "ortg": { "name": "Offensive Rating", "category": "advanced", "description": "Points produced per 100 possessions while on the floor." },
+  "drtg": { "name": "Defensive Rating", "category": "advanced", "description": "Points allowed per 100 possessions while on the floor (lower is better)." }
+}
