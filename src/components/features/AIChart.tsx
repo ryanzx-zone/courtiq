@@ -37,16 +37,19 @@ export function AIChart({ chart, height = 320 }: AIChartProps) {
     }
   }
 
-  // Reshape into Recharts row format: [{label: "X", "Series1": v, "Series2": v}, ...]
-  const rows = chart.data.map((row) => {
-    const out: Record<string, string | number> = { label: row.label };
-    chart.series.forEach((s, i) => {
-      out[s.name] = row.values[i];
-    });
-    return out;
-  });
-
   if (chart.type === "radar") {
+    // Radar axes often mix units (PPG vs TS% vs VORP). Normalize each axis to
+    // its own max so the shape shows *relative* strength; keep raw for tooltip.
+    const rows = chart.data.map((row) => {
+      const max = Math.max(...row.values.map((v) => Math.abs(v)), 1e-6);
+      const out: Record<string, string | number> = { label: row.label };
+      chart.series.forEach((s, i) => {
+        out[s.name] = Math.max(0, (row.values[i] / max) * 100);
+        out[`${s.name}__raw`] = row.values[i];
+      });
+      return out;
+    });
+
     return (
       <ResponsiveContainer width="100%" height={height}>
         <RechartsRadar data={rows} outerRadius="75%">
@@ -55,11 +58,7 @@ export function AIChart({ chart, height = 320 }: AIChartProps) {
             dataKey="label"
             tick={{ fill: "#94a3b8", fontSize: 11, fontFamily: "var(--font-mono)" }}
           />
-          <PolarRadiusAxis
-            tick={{ fill: "#64748b", fontSize: 9 }}
-            axisLine={false}
-            tickCount={5}
-          />
+          <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
           {chart.series.map((s, i) => {
             const color = COLORS[i % COLORS.length];
             return (
@@ -74,11 +73,20 @@ export function AIChart({ chart, height = 320 }: AIChartProps) {
               />
             );
           })}
-          <Tooltip content={<ChartTooltip />} />
+          <Tooltip content={<RadarRawTooltip />} />
         </RechartsRadar>
       </ResponsiveContainer>
     );
   }
+
+  // bar / line — reshape into Recharts row format
+  const rows = chart.data.map((row) => {
+    const out: Record<string, string | number> = { label: row.label };
+    chart.series.forEach((s, i) => {
+      out[s.name] = row.values[i];
+    });
+    return out;
+  });
 
   if (chart.type === "bar") {
     return (
@@ -139,5 +147,48 @@ export function AIChart({ chart, height = 320 }: AIChartProps) {
         ))}
       </RechartsLine>
     </ResponsiveContainer>
+  );
+}
+
+interface RadarTooltipEntry {
+  name?: string;
+  color?: string;
+  payload?: Record<string, string | number>;
+}
+
+function RadarRawTooltip({
+  active,
+  label,
+  payload,
+}: {
+  active?: boolean;
+  label?: string | number;
+  payload?: RadarTooltipEntry[];
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+  return (
+    <div className="rounded-md border border-edge bg-card/95 px-3 py-2 shadow-lg backdrop-blur-sm">
+      {label !== undefined && (
+        <div className="mb-1 font-mono text-[10px] uppercase tracking-wider text-slate-500">
+          {label}
+        </div>
+      )}
+      <ul className="space-y-0.5">
+        {payload.map((entry, i) => {
+          const raw = entry.name ? entry.payload?.[`${entry.name}__raw`] : undefined;
+          return (
+            <li key={i} className="flex items-center gap-2 font-mono text-xs">
+              <span
+                className="h-2 w-2 rounded-full"
+                style={{ background: entry.color }}
+                aria-hidden="true"
+              />
+              <span className="text-slate-400">{entry.name}:</span>
+              <span className="font-semibold text-slate-100">{raw ?? "—"}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

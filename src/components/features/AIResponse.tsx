@@ -8,7 +8,7 @@ interface AIResponseProps {
   onFollowUp: (question: string) => void;
 }
 
-function renderInlineMarkdown(text: string) {
+export function renderInlineMarkdown(text: string) {
   const parts = text.split(/(\*\*[^*]+\*\*)/g);
   return parts.map((part, i) => {
     if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {

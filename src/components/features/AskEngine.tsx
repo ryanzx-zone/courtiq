@@ -1,14 +1,16 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { Sparkles } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { SearchBar } from "@/components/ui/SearchBar";
 import type { AskResponse } from "@/types";
-import { AIResponse } from "./AIResponse";
+import { AIResponse, renderInlineMarkdown } from "./AIResponse";
 
 interface Turn {
   question: string;
   response: AskResponse | null;
+  streamingText: string | null;
   error: string | null;
 }
 
@@ -19,6 +21,21 @@ const PLACEHOLDERS = [
   "Is Victor Wembanyama living up to the hype?",
   "Best value picks in the last 5 drafts?",
 ];
+
+const DELIMITER = "===DATA===";
+
+/** Returns the analysis text streamed so far, hiding any partial trailing delimiter. */
+function visibleAnalysis(accumulated: string): string {
+  const idx = accumulated.indexOf(DELIMITER);
+  if (idx !== -1) return accumulated.slice(0, idx);
+  // Hide a trailing partial of the delimiter so "===DA" doesn't flash mid-stream.
+  for (let len = Math.min(DELIMITER.length - 1, accumulated.length); len > 0; len--) {
+    if (accumulated.endsWith(DELIMITER.slice(0, len))) {
+      return accumulated.slice(0, accumulated.length - len);
+    }
+  }
+  return accumulated;
+}
 
 interface AskEngineProps {
   initialQuestion?: string;
@@ -33,7 +50,6 @@ export function AskEngine({ initialQuestion }: AskEngineProps) {
   const threadEndRef = useRef<HTMLDivElement>(null);
   const turnsRef = useRef<Turn[]>([]);
 
-  // Keep ref in sync so handleSubmit can read latest turns without re-creating
   useEffect(() => {
     turnsRef.current = turns;
   }, [turns]);
@@ -46,10 +62,17 @@ export function AskEngine({ initialQuestion }: AskEngineProps) {
     setLoading(true);
     setTurns((prev) => [
       ...prev,
-      { question: trimmed, response: null, error: null },
+      { question: trimmed, response: null, streamingText: null, error: null },
     ]);
 
-    // Build conversation history from prior completed turns
+    const updateLast = (patch: Partial<Turn>) => {
+      setTurns((prev) => {
+        const next = [...prev];
+        next[next.length - 1] = { ...next[next.length - 1], ...patch };
+        return next;
+      });
+    };
+
     const history = turnsRef.current.flatMap((t) => {
       if (!t.response) return [];
       return [
@@ -64,28 +87,59 @@ export function AskEngine({ initialQuestion }: AskEngineProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question: trimmed, history }),
       });
-      const data = await res.json();
+
       if (!res.ok) {
-        throw new Error(data.error ?? "Request failed");
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? `Request failed (${res.status})`);
       }
-      setTurns((prev) => {
-        const next = [...prev];
-        next[next.length - 1] = { ...next[next.length - 1], response: data };
-        return next;
-      });
+      if (!res.body) throw new Error("No response stream");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulated = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        accumulated += decoder.decode(value, { stream: true });
+
+        if (accumulated.includes("===ERROR===")) {
+          const errMsg =
+            accumulated.split("===ERROR===")[1]?.trim() || "Stream error";
+          updateLast({ error: errMsg, streamingText: null });
+          return;
+        }
+
+        updateLast({ streamingText: visibleAnalysis(accumulated) });
+      }
+
+      // Stream complete — split prose from the structured tail
+      const [analysisPart, dataPart] = accumulated.split(DELIMITER);
+      let structured: Partial<AskResponse> = {};
+      if (dataPart) {
+        try {
+          structured = JSON.parse(dataPart.trim());
+        } catch {
+          // Malformed meta — degrade gracefully to analysis-only
+        }
+      }
+
+      const fullResponse: AskResponse = {
+        analysis: (analysisPart ?? accumulated).trim(),
+        keyStats: structured.keyStats ?? [],
+        verdict: structured.verdict ?? "",
+        chartData: structured.chartData ?? null,
+        followUps: structured.followUps ?? [],
+      };
+      updateLast({ response: fullResponse, streamingText: null });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
-      setTurns((prev) => {
-        const next = [...prev];
-        next[next.length - 1] = { ...next[next.length - 1], error: msg };
-        return next;
-      });
+      updateLast({ error: msg, streamingText: null });
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Auto-fire initial question once
   useEffect(() => {
     if (initialQuestion && !initialFiredRef.current) {
       initialFiredRef.current = true;
@@ -93,7 +147,6 @@ export function AskEngine({ initialQuestion }: AskEngineProps) {
     }
   }, [initialQuestion, handleSubmit]);
 
-  // Rotate placeholder every 3s while input is empty
   useEffect(() => {
     if (input) return;
     const id = setInterval(() => {
@@ -102,23 +155,14 @@ export function AskEngine({ initialQuestion }: AskEngineProps) {
     return () => clearInterval(id);
   }, [input]);
 
-  // Auto-scroll on new turn / loading state
   useEffect(() => {
     threadEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [turns.length, loading]);
 
-  function onFormSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (loading) return;
-    handleSubmit(input);
-  }
-
   return (
     <>
       <div className="flex flex-col gap-8 pb-40">
-        {turns.length === 0 && !loading && (
-          <EmptyState onPick={handleSubmit} />
-        )}
+        {turns.length === 0 && !loading && <EmptyState onPick={handleSubmit} />}
 
         <div className="space-y-8">
           {turns.map((turn, i) => (
@@ -134,16 +178,21 @@ export function AskEngine({ initialQuestion }: AskEngineProps) {
         <div ref={threadEndRef} />
       </div>
 
-      {/* Sticky bottom composer with gradient fade behind */}
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 bg-gradient-to-t from-canvas via-canvas/90 to-transparent px-6 pb-6 pt-12">
         <form
-          onSubmit={onFormSubmit}
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (loading) return;
+            handleSubmit(input);
+          }}
           className="pointer-events-auto mx-auto max-w-3xl"
         >
           <SearchBar
             value={input}
             onChange={setInput}
-            placeholder={input ? "Ask a follow-up..." : PLACEHOLDERS[placeholderIndex]}
+            placeholder={
+              input ? "Ask a follow-up..." : PLACEHOLDERS[placeholderIndex]
+            }
             size="lg"
           />
         </form>
@@ -178,14 +227,45 @@ function TurnCard({
         </div>
       ) : turn.response ? (
         <AIResponse response={turn.response} onFollowUp={onFollowUp} />
+      ) : turn.streamingText !== null ? (
+        <StreamingView text={turn.streamingText} />
       ) : isPending ? (
         <div className="flex items-center gap-4 rounded-lg border border-edge bg-card px-6 py-6">
           <LoadingSpinner size={32} />
           <span className="font-mono text-xs uppercase tracking-wider text-slate-500">
-            CourtIQ is analyzing...
+            CourtIQ is thinking...
           </span>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function StreamingView({ text }: { text: string }) {
+  const paragraphs = text.split(/\n{2,}/).filter((p) => p.trim());
+
+  return (
+    <div className="space-y-5 rounded-lg border border-edge bg-card p-6">
+      <div className="flex items-center gap-2">
+        <Sparkles
+          className="h-4 w-4 animate-pulse text-orange-500"
+          aria-hidden="true"
+        />
+        <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-orange-500">
+          CourtIQ analysis
+        </span>
+      </div>
+
+      <div className="space-y-3 text-slate-200">
+        {paragraphs.map((para, i) => (
+          <p key={i} className="leading-relaxed">
+            {renderInlineMarkdown(para)}
+            {i === paragraphs.length - 1 && (
+              <span className="ml-0.5 inline-block h-4 w-[3px] translate-y-0.5 animate-pulse bg-orange-500 align-middle" />
+            )}
+          </p>
+        ))}
+      </div>
     </div>
   );
 }
@@ -197,8 +277,8 @@ function EmptyState({ onPick }: { onPick: (q: string) => void }) {
         Ask anything about the <span className="text-orange-500">NBA</span>
       </h2>
       <p className="max-w-md text-slate-400">
-        Stats on 61 current players, all 30 teams, and the last 10 drafts.
-        Pick a starter question or type your own below.
+        Stats on 61 current players, all 30 teams, and the last 10 drafts. Pick a
+        starter question or type your own below.
       </p>
 
       <div className="mt-2 grid w-full max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
