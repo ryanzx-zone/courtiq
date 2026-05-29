@@ -1,5 +1,6 @@
 import {
   ArrowRight,
+  Gem,
   GitCompareArrows,
   Search,
   Sparkles,
@@ -91,11 +92,11 @@ export default function Home() {
               The toolkit
             </p>
             <h2 className="mt-2 font-display text-4xl tracking-wider text-slate-100">
-              Three ways to explore
+              Four ways to explore
             </h2>
           </header>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <FeatureCard
               href="/ask"
               icon={Sparkles}
@@ -113,6 +114,12 @@ export default function Home() {
               icon={Users}
               title="Players"
               desc={`Browse, search, and sort all ${playerCount} players from the 2024-25 season.`}
+            />
+            <FeatureCard
+              href="/draft"
+              icon={Gem}
+              title="Draft"
+              desc={`Plot ${draftCount} draft picks by career value — spot the steals and the busts.`}
             />
           </div>
         </div>
