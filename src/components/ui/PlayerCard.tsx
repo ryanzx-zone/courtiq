@@ -1,20 +1,11 @@
-import Image from "next/image";
 import Link from "next/link";
 import type { Player } from "@/types";
 import { formatStat } from "@/lib/stats";
+import { PlayerHeadshot } from "./PlayerHeadshot";
 
 interface PlayerCardProps {
   player: Player;
   href?: string;
-}
-
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .map((part) => part[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
 }
 
 export function PlayerCard({ player, href }: PlayerCardProps) {
@@ -26,20 +17,12 @@ export function PlayerCard({ player, href }: PlayerCardProps) {
       className="group flex flex-col overflow-hidden rounded-lg border border-edge bg-card transition-colors hover:bg-card-hover hover:border-orange-500/40"
     >
       <div className="relative aspect-[4/3] w-full bg-surface">
-        {player.headshot_url ? (
-          <Image
-            src={player.headshot_url}
-            alt={player.name}
-            fill
-            sizes="(max-width: 768px) 50vw, 25vw"
-            className="object-cover object-top"
-            unoptimized
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center font-display text-5xl tracking-wider text-slate-600">
-            {getInitials(player.name)}
-          </div>
-        )}
+        <PlayerHeadshot
+          name={player.name}
+          url={player.headshot_url}
+          sizes="(max-width: 768px) 50vw, 25vw"
+          initialsClassName="text-5xl"
+        />
         <div className="absolute top-2 right-2 rounded-md bg-canvas/80 px-2 py-1 font-mono text-[10px] font-bold text-orange-400 backdrop-blur-sm">
           {player.team}
         </div>

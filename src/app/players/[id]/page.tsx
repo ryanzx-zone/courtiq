@@ -1,9 +1,9 @@
 import { ArrowLeftRight, MessageCircleQuestion } from "lucide-react";
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { RadarChart } from "@/components/charts/RadarChart";
+import { PlayerHeadshot } from "@/components/ui/PlayerHeadshot";
 import { getAllPlayers, getPlayerById } from "@/lib/players";
 import { computeRadarProfile, formatPct, formatStat } from "@/lib/stats";
 import { getTeamById } from "@/lib/teams";
@@ -22,15 +22,6 @@ export async function generateMetadata({
     title: `${player.name} — CourtIQ`,
     description: `${player.name}, ${player.position} for the ${player.team_full}. 2024-25 stats and analysis.`,
   };
-}
-
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .map((part) => part[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
 }
 
 export default async function PlayerProfilePage({ params }: PageProps) {
@@ -57,21 +48,13 @@ export default async function PlayerProfilePage({ params }: PageProps) {
       {/* Hero */}
       <header className="grid grid-cols-1 gap-8 md:grid-cols-[260px,1fr]">
         <div className="relative aspect-square w-full overflow-hidden rounded-lg border border-edge bg-card md:w-[260px]">
-          {player.headshot_url ? (
-            <Image
-              src={player.headshot_url}
-              alt={player.name}
-              fill
-              sizes="260px"
-              className="object-cover object-top"
-              unoptimized
-              priority
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center font-display text-7xl tracking-wider text-slate-600">
-              {getInitials(player.name)}
-            </div>
-          )}
+          <PlayerHeadshot
+            name={player.name}
+            url={player.headshot_url}
+            sizes="260px"
+            initialsClassName="text-7xl"
+            priority
+          />
           <div className="absolute right-3 top-3 rounded-md bg-canvas/80 px-2.5 py-1 font-mono text-xs font-bold text-orange-400 backdrop-blur-sm">
             {player.team}
           </div>

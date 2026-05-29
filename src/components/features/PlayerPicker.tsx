@@ -1,9 +1,9 @@
 "use client";
 
 import { ChevronDown, Search, X } from "lucide-react";
-import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Player } from "@/types";
+import { PlayerHeadshot } from "@/components/ui/PlayerHeadshot";
 
 interface PlayerPickerProps {
   players: Player[];
@@ -12,10 +12,6 @@ interface PlayerPickerProps {
   placeholder?: string;
   /** Other players to mark as already-picked (e.g. selected in the other slot) */
   excludeIds?: string[];
-}
-
-function initials(name: string) {
-  return name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
 }
 
 export function PlayerPicker({
@@ -179,20 +175,12 @@ function Avatar({ player, small }: { player: Player | null; small?: boolean }) {
     <div
       className={`${size} relative shrink-0 overflow-hidden rounded-md bg-surface`}
     >
-      {player.headshot_url ? (
-        <Image
-          src={player.headshot_url}
-          alt={player.name}
-          fill
-          sizes="48px"
-          className="object-cover object-top"
-          unoptimized
-        />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center font-display text-sm tracking-wider text-slate-500">
-          {initials(player.name)}
-        </div>
-      )}
+      <PlayerHeadshot
+        name={player.name}
+        url={player.headshot_url}
+        sizes="48px"
+        initialsClassName="text-sm"
+      />
     </div>
   );
 }
