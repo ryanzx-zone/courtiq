@@ -5,8 +5,10 @@ import { notFound } from "next/navigation";
 import { RadarChart } from "@/components/charts/RadarChart";
 import { PlayerHeadshot } from "@/components/ui/PlayerHeadshot";
 import { getAllPlayers, getPlayerById } from "@/lib/players";
+import { findSimilarPlayers } from "@/lib/similarity";
 import { computeRadarProfile, formatPct, formatStat } from "@/lib/stats";
 import { getTeamById } from "@/lib/teams";
+import type { Player } from "@/types";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -32,6 +34,7 @@ export default async function PlayerProfilePage({ params }: PageProps) {
   const allPlayers = getAllPlayers();
   const team = getTeamById(player.team);
   const radar = computeRadarProfile(player, allPlayers);
+  const similar = findSimilarPlayers(player, allPlayers, 4);
 
   const askHref = `/ask?q=${encodeURIComponent(`Tell me about ${player.name} this season`)}`;
   const compareHref = `/compare?p1=${player.id}`;
@@ -175,7 +178,62 @@ export default async function PlayerProfilePage({ params }: PageProps) {
           />
         </div>
       </section>
+
+      {/* Similar players */}
+      {similar.length > 0 && (
+        <section className="mt-14">
+          <header className="mb-4 border-b border-edge pb-3">
+            <h2 className="font-display text-2xl tracking-wider text-slate-100">
+              Similar players
+            </h2>
+            <p className="mt-1 text-sm text-slate-400">
+              Closest statistical profiles by cosine similarity across 12
+              normalized per-game and rate stats.
+            </p>
+          </header>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            {similar.map(({ player: sp, score }) => (
+              <SimilarPlayerCard key={sp.id} player={sp} score={score} />
+            ))}
+          </div>
+        </section>
+      )}
     </div>
+  );
+}
+
+function SimilarPlayerCard({
+  player,
+  score,
+}: {
+  player: Player;
+  score: number;
+}) {
+  return (
+    <Link
+      href={`/players/${player.id}`}
+      className="group flex flex-col overflow-hidden rounded-lg border border-edge bg-card transition-colors hover:border-orange-500/40 hover:bg-card-hover"
+    >
+      <div className="relative aspect-square w-full bg-surface">
+        <PlayerHeadshot
+          name={player.name}
+          url={player.headshot_url}
+          sizes="(max-width: 768px) 50vw, 25vw"
+          initialsClassName="text-4xl"
+        />
+        <div className="absolute right-2 top-2 rounded-md bg-canvas/80 px-2 py-1 font-mono text-[10px] font-bold text-orange-400 backdrop-blur-sm">
+          {Math.round(score * 100)}% match
+        </div>
+      </div>
+      <div className="p-3">
+        <div className="truncate text-sm font-semibold text-slate-100 group-hover:text-white">
+          {player.name}
+        </div>
+        <div className="font-mono text-[10px] uppercase tracking-wider text-slate-500">
+          {player.team} · {player.position}
+        </div>
+      </div>
+    </Link>
   );
 }
 
