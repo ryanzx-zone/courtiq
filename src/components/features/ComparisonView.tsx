@@ -1,11 +1,14 @@
 "use client";
 
 import { Sparkles } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RadarChart } from "@/components/charts/RadarChart";
+import { Badge } from "@/components/ui/Badge";
 import { StatTable } from "@/components/ui/StatTable";
+import { streamAsk } from "@/lib/askClient";
 import { computeRadarProfile, formatPct, formatStat } from "@/lib/stats";
-import type { Player, PlayerStats } from "@/types";
+import type { AskResponse, Player, PlayerStats } from "@/types";
+import { renderInlineMarkdown } from "./AIResponse";
 import { PlayerPicker } from "./PlayerPicker";
 
 interface ComparisonViewProps {
@@ -102,6 +105,44 @@ export function ComparisonView({
     });
   }, [p1, p2]);
 
+  // AI take — opt-in via button to control API cost; reset when matchup changes
+  const [aiText, setAiText] = useState<string | null>(null);
+  const [aiResponse, setAiResponse] = useState<AskResponse | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const pairKey = `${p1?.id ?? ""}|${p2?.id ?? ""}`;
+  const currentPairRef = useRef(pairKey);
+
+  useEffect(() => {
+    currentPairRef.current = pairKey;
+    setAiText(null);
+    setAiResponse(null);
+    setAiError(null);
+    setAiLoading(false);
+  }, [pairKey]);
+
+  const generateTake = useCallback(async () => {
+    if (!p1 || !p2) return;
+    const key = `${p1.id}|${p2.id}`;
+    setAiLoading(true);
+    setAiError(null);
+    setAiResponse(null);
+    setAiText("");
+    try {
+      const question = `Compare ${p1.name} and ${p2.name} in the 2024-25 season. Who's better, and what are the biggest differences in their games?`;
+      const res = await streamAsk(question, [], (text) => {
+        if (currentPairRef.current === key) setAiText(text);
+      });
+      if (currentPairRef.current === key) setAiResponse(res);
+    } catch (err) {
+      if (currentPairRef.current === key) {
+        setAiError(err instanceof Error ? err.message : "Failed to generate");
+      }
+    } finally {
+      if (currentPairRef.current === key) setAiLoading(false);
+    }
+  }, [p1, p2]);
+
   const both = p1 && p2;
 
   return (
@@ -170,26 +211,67 @@ export function ComparisonView({
             <StatTable columns={[p1.name, p2.name]} rows={tableRows} />
           </section>
 
-          {/* AI analysis stub */}
+          {/* AI analysis */}
           <section>
             <header className="mb-4 border-b border-edge pb-3">
               <h2 className="font-display text-2xl tracking-wider text-slate-100">
                 AI analysis
               </h2>
+              <p className="mt-1 text-sm text-slate-400">
+                CourtIQ&apos;s take on the matchup.
+              </p>
             </header>
-            <div className="flex items-start gap-3 rounded-lg border border-dashed border-edge bg-card/50 p-6">
-              <Sparkles className="h-5 w-5 shrink-0 text-orange-500" aria-hidden="true" />
-              <div>
-                <p className="text-sm text-slate-300">
-                  AI-generated comparison coming in Step 11 (Claude API
-                  integration).
+
+            {aiError ? (
+              <div className="space-y-3 rounded-lg border border-red-500/40 bg-red-500/5 p-4">
+                <p className="text-sm text-red-300">
+                  <span className="font-mono text-xs uppercase tracking-wider text-red-400">
+                    Error:
+                  </span>{" "}
+                  {aiError}
                 </p>
-                <p className="mt-1 text-xs text-slate-500">
-                  Claude will analyze both players' profiles, identify the
-                  stylistic differences, and pick a winner.
-                </p>
+                <button
+                  type="button"
+                  onClick={generateTake}
+                  className="rounded-md border border-edge bg-card px-3 py-1.5 text-xs text-slate-200 hover:border-orange-500/40 hover:text-orange-400"
+                >
+                  Try again
+                </button>
               </div>
-            </div>
+            ) : aiResponse ? (
+              <AICompareResult response={aiResponse} />
+            ) : aiText !== null ? (
+              <div className="space-y-3 rounded-lg border border-edge bg-card p-6">
+                <BrandHeader pulsing />
+                {aiText ? (
+                  <div className="space-y-3 text-slate-200">
+                    {aiText
+                      .split(/\n{2,}/)
+                      .filter(Boolean)
+                      .map((para, i, arr) => (
+                        <p key={i} className="leading-relaxed">
+                          {renderInlineMarkdown(para)}
+                          {i === arr.length - 1 && <Cursor />}
+                        </p>
+                      ))}
+                  </div>
+                ) : (
+                  <p className="font-mono text-xs uppercase tracking-wider text-slate-500">
+                    Analyzing the matchup...
+                  </p>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={generateTake}
+                disabled={aiLoading}
+                className="inline-flex items-center gap-2 rounded-md bg-orange-500 px-4 py-2.5 text-sm font-semibold text-canvas transition-colors hover:bg-orange-400 disabled:opacity-60"
+              >
+                <Sparkles className="h-4 w-4" />
+                Get CourtIQ&apos;s take on this matchup
+              </button>
+            )}
           </section>
         </>
       )}
@@ -237,6 +319,60 @@ function MiniStat({ label, value }: { label: string; value: string }) {
       <dd className="font-mono text-lg font-semibold text-slate-100">
         {value}
       </dd>
+    </div>
+  );
+}
+
+function BrandHeader({ pulsing }: { pulsing?: boolean }) {
+  return (
+    <div className="flex items-center gap-2">
+      <Sparkles
+        className={`h-4 w-4 text-orange-500 ${pulsing ? "animate-pulse" : ""}`}
+        aria-hidden="true"
+      />
+      <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-orange-500">
+        CourtIQ analysis
+      </span>
+    </div>
+  );
+}
+
+function Cursor() {
+  return (
+    <span className="ml-0.5 inline-block h-4 w-[3px] translate-y-0.5 animate-pulse bg-orange-500 align-middle" />
+  );
+}
+
+function AICompareResult({ response }: { response: AskResponse }) {
+  const paragraphs = response.analysis.split(/\n{2,}/).filter((p) => p.trim());
+  return (
+    <div className="space-y-5 rounded-lg border border-edge bg-card p-6">
+      <BrandHeader />
+      <div className="space-y-3 text-slate-200">
+        {paragraphs.map((para, i) => (
+          <p key={i} className="leading-relaxed">
+            {renderInlineMarkdown(para)}
+          </p>
+        ))}
+      </div>
+      {response.keyStats.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {response.keyStats.map((s, i) => (
+            <Badge
+              key={i}
+              label={s.label}
+              value={s.value}
+              context={s.context}
+              accent="orange"
+            />
+          ))}
+        </div>
+      )}
+      {response.verdict && (
+        <div className="border-l-2 border-orange-500 pl-4 py-1 italic text-slate-100">
+          {response.verdict}
+        </div>
+      )}
     </div>
   );
 }

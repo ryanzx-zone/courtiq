@@ -4,6 +4,7 @@ import { Sparkles } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { SearchBar } from "@/components/ui/SearchBar";
+import { streamAsk } from "@/lib/askClient";
 import type { AskResponse } from "@/types";
 import { AIResponse, renderInlineMarkdown } from "./AIResponse";
 
@@ -21,21 +22,6 @@ const PLACEHOLDERS = [
   "Is Victor Wembanyama living up to the hype?",
   "Best value picks in the last 5 drafts?",
 ];
-
-const DELIMITER = "===DATA===";
-
-/** Returns the analysis text streamed so far, hiding any partial trailing delimiter. */
-function visibleAnalysis(accumulated: string): string {
-  const idx = accumulated.indexOf(DELIMITER);
-  if (idx !== -1) return accumulated.slice(0, idx);
-  // Hide a trailing partial of the delimiter so "===DA" doesn't flash mid-stream.
-  for (let len = Math.min(DELIMITER.length - 1, accumulated.length); len > 0; len--) {
-    if (accumulated.endsWith(DELIMITER.slice(0, len))) {
-      return accumulated.slice(0, accumulated.length - len);
-    }
-  }
-  return accumulated;
-}
 
 interface AskEngineProps {
   initialQuestion?: string;
@@ -82,56 +68,10 @@ export function AskEngine({ initialQuestion }: AskEngineProps) {
     });
 
     try {
-      const res = await fetch("/api/ask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: trimmed, history }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? `Request failed (${res.status})`);
-      }
-      if (!res.body) throw new Error("No response stream");
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let accumulated = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        accumulated += decoder.decode(value, { stream: true });
-
-        if (accumulated.includes("===ERROR===")) {
-          const errMsg =
-            accumulated.split("===ERROR===")[1]?.trim() || "Stream error";
-          updateLast({ error: errMsg, streamingText: null });
-          return;
-        }
-
-        updateLast({ streamingText: visibleAnalysis(accumulated) });
-      }
-
-      // Stream complete — split prose from the structured tail
-      const [analysisPart, dataPart] = accumulated.split(DELIMITER);
-      let structured: Partial<AskResponse> = {};
-      if (dataPart) {
-        try {
-          structured = JSON.parse(dataPart.trim());
-        } catch {
-          // Malformed meta — degrade gracefully to analysis-only
-        }
-      }
-
-      const fullResponse: AskResponse = {
-        analysis: (analysisPart ?? accumulated).trim(),
-        keyStats: structured.keyStats ?? [],
-        verdict: structured.verdict ?? "",
-        chartData: structured.chartData ?? null,
-        followUps: structured.followUps ?? [],
-      };
-      updateLast({ response: fullResponse, streamingText: null });
+      const response = await streamAsk(trimmed, history, (text) =>
+        updateLast({ streamingText: text }),
+      );
+      updateLast({ response, streamingText: null });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       updateLast({ error: msg, streamingText: null });
